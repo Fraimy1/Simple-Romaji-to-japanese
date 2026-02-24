@@ -15,10 +15,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize jamdict (optional - kanji suggestions)
+# Probe jamdict availability at import time (do NOT keep a module-level
+# Jamdict instance – its SQLite connection is not thread-safe and would
+# break when reused across threads inside the TestClient / uvicorn workers).
 try:
-    from jamdict import Jamdict
-    jmd = Jamdict()
+    from jamdict import Jamdict as _Jamdict
+    _probe = _Jamdict()
+    _probe.lookup("あ")   # lightweight connectivity check
     HAS_JAMDICT = True
 except Exception:
     HAS_JAMDICT = False
@@ -46,11 +49,17 @@ def is_pure_romaji(text: str) -> bool:
 
 
 def get_kanji_candidates(hiragana: str) -> List[str]:
-    """Look up kanji candidates for a hiragana reading via JMDict."""
+    """Look up kanji candidates for a hiragana reading via JMDict.
+
+    A fresh Jamdict instance is created per call so that each request
+    (which may run in a different OS thread) gets its own SQLite connection.
+    """
     if not HAS_JAMDICT:
         return []
     candidates = []
     try:
+        from jamdict import Jamdict
+        jmd = Jamdict()
         result = jmd.lookup(hiragana)
         for entry in result.entries:
             # Only include entries whose reading matches exactly
