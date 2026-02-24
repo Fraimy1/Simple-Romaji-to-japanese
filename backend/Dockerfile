@@ -2,8 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Install build tools needed by jamdict/peewee C extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (layer cache)
 COPY requirements.txt .
+RUN pip install --upgrade pip wheel setuptools
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-warm jamdict so the DB is ready at container start
