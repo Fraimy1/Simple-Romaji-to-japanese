@@ -6,7 +6,7 @@ services:
       - "8000"
     # Optional: expose to host for debugging
     ports:
-      - "8000:8000"
+      - "8877:8000"
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
@@ -20,7 +20,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:80"
+      - "4040:80"
     depends_on:
       backend:
         condition: service_healthy

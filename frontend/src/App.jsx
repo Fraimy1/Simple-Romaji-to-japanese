@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import InputPanel from './components/InputPanel'
 import OutputPanel from './components/OutputPanel'
@@ -9,23 +9,35 @@ export default function App() {
   const [segments, setSegments] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const debounceRef = useRef(null)
 
-  const handleConvert = async () => {
-    if (!inputText.trim()) return
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await axios.post('/api/convert', { text: inputText })
-      setSegments(response.data.segments)
-    } catch (err) {
-      setError(
-        err.response?.data?.detail ||
-        'Conversion failed. Make sure the backend is running on port 8000.'
-      )
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (!inputText.trim()) {
+      setSegments([])
+      setError(null)
+      return
     }
-  }
+
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await axios.post('/api/convert', { text: inputText })
+        setSegments(response.data.segments)
+      } catch (err) {
+        setError(
+          err.response?.data?.detail ||
+          'Conversion failed. Make sure the backend is running.'
+        )
+      } finally {
+        setLoading(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(debounceRef.current)
+  }, [inputText])
 
   const handleSelectCandidate = (index, candidate) => {
     setSegments((prev) =>
@@ -54,8 +66,6 @@ export default function App() {
         <InputPanel
           value={inputText}
           onChange={setInputText}
-          onConvert={handleConvert}
-          loading={loading}
         />
 
         <AnimatePresence>
@@ -72,15 +82,11 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {segments.length > 0 && (
-            <OutputPanel
-              key="output"
-              segments={segments}
-              onSelectCandidate={handleSelectCandidate}
-            />
-          )}
-        </AnimatePresence>
+        <OutputPanel
+          segments={segments}
+          loading={loading}
+          onSelectCandidate={handleSelectCandidate}
+        />
       </main>
 
       {/* ── Footer ── */}
