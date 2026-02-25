@@ -43,6 +43,13 @@ class ConvertResponse(BaseModel):
     segments: List[WordSegment]
 
 
+# ASCII punctuation → Japanese fullwidth equivalents
+_PUNCT_MAP: dict = {
+    "!": "！",
+    "?": "？",
+    ".": "。",
+}
+
 # Romaji particles whose standard written form differs from their phonetic kana.
 # e.g. は is pronounced "wa" but written as the "ha" kana.
 _PARTICLE_ROMAJI_MAP: dict = {
@@ -104,46 +111,64 @@ async def convert(req: ConvertRequest):
         if not word:
             continue
 
-        if is_pure_romaji(word):
-            phonetic_hiragana = romkan.to_hiragana(word)
-            katakana = romkan.to_katakana(word)
-            # Use orthographic particle form where it differs from phonetic kana
-            particle_kana = _PARTICLE_ROMAJI_MAP.get(word)
-            hiragana = particle_kana if particle_kana else phonetic_hiragana
-        else:
-            # Already kana/kanji or mixed – pass through
-            hiragana = word
-            katakana = word
-            phonetic_hiragana = word
-            particle_kana = None
+        # Strip trailing ASCII punctuation; collect JP equivalents for later
+        trailing_punct: list = []
+        clean_word = word
+        while clean_word and clean_word[-1] in _PUNCT_MAP:
+            trailing_punct.insert(0, (clean_word[-1], _PUNCT_MAP[clean_word[-1]]))
+            clean_word = clean_word[:-1]
 
-        # Build candidate list: hiragana first, then katakana, then kanji
-        candidates: List[str] = [hiragana]
-        if katakana != hiragana:
-            candidates.append(katakana)
-        # For particle overrides, also offer the phonetic kana as an alternate
-        if particle_kana:
-            if phonetic_hiragana not in candidates:
-                candidates.append(phonetic_hiragana)
+        if clean_word:
+            if is_pure_romaji(clean_word):
+                phonetic_hiragana = romkan.to_hiragana(clean_word)
+                katakana = romkan.to_katakana(clean_word)
+                # Use orthographic particle form where it differs from phonetic kana
+                particle_kana = _PARTICLE_ROMAJI_MAP.get(clean_word)
+                hiragana = particle_kana if particle_kana else phonetic_hiragana
+            else:
+                # Already kana/kanji or mixed – pass through
+                hiragana = clean_word
+                katakana = clean_word
+                phonetic_hiragana = clean_word
+                particle_kana = None
 
-        kanji_candidates = get_kanji_candidates(hiragana)
-        for kc in kanji_candidates:
-            if kc not in candidates:
-                candidates.append(kc)
+            # Build candidate list: hiragana first, then katakana, then kanji
+            candidates: List[str] = [hiragana]
+            if katakana != hiragana:
+                candidates.append(katakana)
+            # For particle overrides, also offer the phonetic kana as an alternate
+            if particle_kana:
+                if phonetic_hiragana not in candidates:
+                    candidates.append(phonetic_hiragana)
 
-        # Default selection: keep hiragana for particles/grammar words; else first kanji
-        if hiragana in _HIRAGANA_DEFAULT or len(candidates) <= 2:
-            selected = candidates[0]   # keep hiragana
-        else:
-            selected = candidates[2]   # first kanji
+            kanji_candidates = get_kanji_candidates(hiragana)
+            for kc in kanji_candidates:
+                if kc not in candidates:
+                    candidates.append(kc)
 
-        segments.append(WordSegment(
-            romaji=word,
-            hiragana=hiragana,
-            katakana=katakana,
-            candidates=candidates,
-            selected=selected,
-        ))
+            # Default selection: keep hiragana for particles/grammar words; else first kanji
+            if hiragana in _HIRAGANA_DEFAULT or len(candidates) <= 2:
+                selected = candidates[0]   # keep hiragana
+            else:
+                selected = candidates[2]   # first kanji
+
+            segments.append(WordSegment(
+                romaji=clean_word,
+                hiragana=hiragana,
+                katakana=katakana,
+                candidates=candidates,
+                selected=selected,
+            ))
+
+        # Emit one segment per trailing punctuation character
+        for orig, jp in trailing_punct:
+            segments.append(WordSegment(
+                romaji=orig,
+                hiragana=jp,
+                katakana=jp,
+                candidates=[jp],
+                selected=jp,
+            ))
 
     return ConvertResponse(segments=segments)
 

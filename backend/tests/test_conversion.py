@@ -290,6 +290,50 @@ def test_orthographic_particle_hiragana_field(romaji, ortho, phonetic):
     )
 
 
+# ─── 9. Punctuation conversion ───────────────────────────────────────────────
+
+PUNCT_STANDALONE_CASES = [
+    ("!", "！"),
+    ("?", "？"),
+    (".", "。"),
+]
+
+
+@pytest.mark.parametrize("ascii_punct,jp_punct", PUNCT_STANDALONE_CASES)
+def test_standalone_punctuation_converts(ascii_punct, jp_punct):
+    seg = one(ascii_punct)
+    assert seg["selected"] == jp_punct
+    assert seg["hiragana"] == jp_punct
+    assert seg["romaji"] == ascii_punct
+
+
+def test_punctuation_attached_to_word():
+    segs = api_convert("desu!")
+    assert len(segs) == 2, f"Expected 2 segments for 'desu!', got {len(segs)}"
+    assert segs[0]["hiragana"] == "です"
+    assert segs[1]["selected"] == "！"
+
+
+def test_multiple_punctuation_attached():
+    segs = api_convert("nani?!")
+    assert len(segs) == 3, f"Expected 3 segments for 'nani?!', got {len(segs)}"
+    assert segs[0]["hiragana"] == "なに"
+    assert segs[1]["selected"] == "？"
+    assert segs[2]["selected"] == "！"
+
+
+@pytest.mark.parametrize("sentence,expected_count", [
+    ("watashi wa gakusei desu!", 5),   # 4 words + 1 punct
+    ("nani?",                   2),   # 1 word + 1 punct
+    ("inu ga iru.",              4),   # 3 words + 1 punct
+])
+def test_sentence_with_punctuation_count(sentence, expected_count):
+    segs = api_convert(sentence)
+    assert len(segs) == expected_count, (
+        f"'{sentence}': expected {expected_count} segments, got {len(segs)}"
+    )
+
+
 # ─── 7. Utility ─────────────────────────────────────────────────────────────
 
 def test_health():
