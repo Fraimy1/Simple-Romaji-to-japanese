@@ -243,6 +243,33 @@ def test_edge_case_hiragana(romaji, expected):
     )
 
 
+# ─── 8. Particle / grammar word defaults stay hiragana (12 cases) ────────────
+
+PARTICLE_DEFAULT_CASES = [
+    ("wa",      "わ"),
+    ("ga",      "が"),
+    ("wo",      "を"),
+    ("ni",      "に"),
+    ("de",      "で"),
+    ("no",      "の"),
+    ("ka",      "か"),
+    ("mo",      "も"),
+    ("desu",    "です"),
+    ("masu",    "ます"),
+    ("da",      "だ"),
+    ("nai",     "ない"),
+]
+
+
+@pytest.mark.parametrize("romaji,expected_hiragana", PARTICLE_DEFAULT_CASES)
+def test_particle_default_stays_hiragana(romaji, expected_hiragana):
+    seg = one(romaji)
+    assert seg["selected"] == expected_hiragana, (
+        f"'{romaji}' should default to '{expected_hiragana}', "
+        f"got '{seg['selected']}'"
+    )
+
+
 # ─── 7. Utility ─────────────────────────────────────────────────────────────
 
 def test_health():

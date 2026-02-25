@@ -43,6 +43,17 @@ class ConvertResponse(BaseModel):
     segments: List[WordSegment]
 
 
+# Particles and grammar words that should stay hiragana by default
+_HIRAGANA_DEFAULT = frozenset({
+    # particles
+    "わ", "が", "を", "に", "で", "の", "へ", "と",
+    "か", "や", "も", "な", "ね", "よ", "さ",
+    # copulas / aux verbs
+    "です", "ます", "だ", "でした", "ました",
+    "ません", "ましょう", "ない", "たい",
+})
+
+
 def is_pure_romaji(text: str) -> bool:
     """Check if text is pure ASCII (likely romaji)."""
     return bool(re.match(r'^[a-zA-Z\'-]+$', text))
@@ -102,8 +113,11 @@ async def convert(req: ConvertRequest):
             if kc not in candidates:
                 candidates.append(kc)
 
-        # Default selection: first kanji candidate if available, else hiragana
-        selected = candidates[2] if len(candidates) > 2 else candidates[0]
+        # Default selection: keep hiragana for particles/grammar words; else first kanji
+        if hiragana in _HIRAGANA_DEFAULT or len(candidates) <= 2:
+            selected = candidates[0]   # keep hiragana
+        else:
+            selected = candidates[2]   # first kanji
 
         segments.append(WordSegment(
             romaji=word,

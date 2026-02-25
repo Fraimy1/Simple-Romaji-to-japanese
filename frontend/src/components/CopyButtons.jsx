@@ -22,10 +22,24 @@ export default function CopyButtons({ segments }) {
   const [copied, setCopied] = useState(null)
 
   const copy = (text, label) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(label)
+    const fallback = () => {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0'
+      document.body.appendChild(ta)
+      ta.focus(); ta.select()
+      try { document.execCommand('copy'); setCopied(label) } catch {}
+      finally { document.body.removeChild(ta) }
       setTimeout(() => setCopied(null), 2000)
-    })
+    }
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text)
+        .then(() => { setCopied(label); setTimeout(() => setCopied(null), 2000) })
+        .catch(fallback)
+    } else {
+      fallback()
+    }
   }
 
   const allSelected   = segments.map((s) => s.selected).join('')
