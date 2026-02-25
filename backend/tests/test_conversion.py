@@ -246,7 +246,10 @@ def test_edge_case_hiragana(romaji, expected):
 # ─── 8. Particle / grammar word defaults stay hiragana (12 cases) ────────────
 
 PARTICLE_DEFAULT_CASES = [
-    ("wa",      "わ"),
+    # Orthographic particles (written form ≠ phonetic kana)
+    ("wa",      "は"),   # topic particle: pronounced "wa", written は
+    ("e",       "へ"),   # direction particle: pronounced "e", written へ
+    # Phonetic particles
     ("ga",      "が"),
     ("wo",      "を"),
     ("ni",      "に"),
@@ -267,6 +270,23 @@ def test_particle_default_stays_hiragana(romaji, expected_hiragana):
     assert seg["selected"] == expected_hiragana, (
         f"'{romaji}' should default to '{expected_hiragana}', "
         f"got '{seg['selected']}'"
+    )
+
+
+ORTHOGRAPHIC_PARTICLE_CASES = [
+    ("wa", "は", "わ"),  # hiragana=は, phonetic わ still in candidates
+    ("e",  "へ", "え"),  # hiragana=へ, phonetic え still in candidates
+]
+
+
+@pytest.mark.parametrize("romaji,ortho,phonetic", ORTHOGRAPHIC_PARTICLE_CASES)
+def test_orthographic_particle_hiragana_field(romaji, ortho, phonetic):
+    seg = one(romaji)
+    assert seg["hiragana"] == ortho, (
+        f"'{romaji}' hiragana field should be '{ortho}', got '{seg['hiragana']}'"
+    )
+    assert phonetic in seg["candidates"], (
+        f"Phonetic form '{phonetic}' should still appear in candidates for '{romaji}'"
     )
 
 

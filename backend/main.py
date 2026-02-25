@@ -43,10 +43,19 @@ class ConvertResponse(BaseModel):
     segments: List[WordSegment]
 
 
+# Romaji particles whose standard written form differs from their phonetic kana.
+# e.g. は is pronounced "wa" but written as the "ha" kana.
+_PARTICLE_ROMAJI_MAP: dict = {
+    "wa": "は",   # topic particle: pronounced "wa", written は (ha)
+    "e":  "へ",   # direction particle: pronounced "e", written へ (he)
+}
+
 # Particles and grammar words that should stay hiragana by default
 _HIRAGANA_DEFAULT = frozenset({
-    # particles
-    "わ", "が", "を", "に", "で", "の", "へ", "と",
+    # particles (orthographic forms used by _PARTICLE_ROMAJI_MAP)
+    "は", "へ",
+    # particles (phonetic forms)
+    "わ", "が", "を", "に", "で", "の", "と",
     "か", "や", "も", "な", "ね", "よ", "さ",
     # copulas / aux verbs
     "です", "ます", "だ", "でした", "ました",
@@ -96,17 +105,26 @@ async def convert(req: ConvertRequest):
             continue
 
         if is_pure_romaji(word):
-            hiragana = romkan.to_hiragana(word)
+            phonetic_hiragana = romkan.to_hiragana(word)
             katakana = romkan.to_katakana(word)
+            # Use orthographic particle form where it differs from phonetic kana
+            particle_kana = _PARTICLE_ROMAJI_MAP.get(word)
+            hiragana = particle_kana if particle_kana else phonetic_hiragana
         else:
             # Already kana/kanji or mixed – pass through
             hiragana = word
             katakana = word
+            phonetic_hiragana = word
+            particle_kana = None
 
         # Build candidate list: hiragana first, then katakana, then kanji
         candidates: List[str] = [hiragana]
         if katakana != hiragana:
             candidates.append(katakana)
+        # For particle overrides, also offer the phonetic kana as an alternate
+        if particle_kana:
+            if phonetic_hiragana not in candidates:
+                candidates.append(phonetic_hiragana)
 
         kanji_candidates = get_kanji_candidates(hiragana)
         for kc in kanji_candidates:
